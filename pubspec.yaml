@@ -1,0 +1,21 @@
+name: flutter_image_perspective_crop
+description: "A new Flutter package project."
+version: 0.0.1
+homepage: https://github.com/ValueNotify666/flutter_image_perspective_crop
+
+environment:
+  sdk: ^3.6.2
+  flutter: ">=1.17.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  image: ^4.8.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+
+flutter:
