@@ -1,7 +1,9 @@
 name: flutter_image_perspective_crop
-description: "A new Flutter package project."
+description: "Flutter perspective crop editor with draggable handles, magnifier, controller, and pure Dart processing."
 version: 0.0.1
 homepage: https://github.com/ValueNotify666/flutter_image_perspective_crop
+repository: https://github.com/ValueNotify666/flutter_image_perspective_crop
+issue_tracker: https://github.com/ValueNotify666/flutter_image_perspective_crop/issues
 
 environment:
   sdk: ^3.6.2
