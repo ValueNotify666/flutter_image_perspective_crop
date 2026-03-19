@@ -10,7 +10,7 @@ class PerspectiveCropProcessor {
   static Future<Uint8List> cropToJpg({
     required Uint8List imageBytes,
     required PerspectiveQuad imageQuad,
-    int quality = 90,
+    int quality = 100,
   }) async {
     final img.Image? source = img.decodeImage(imageBytes);
     if (source == null) {

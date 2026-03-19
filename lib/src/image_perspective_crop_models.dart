@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'dart:ui';
 
 enum PerspectiveControlPointType {
@@ -71,4 +72,16 @@ class PerspectiveControlPointData {
   final Offset offset;
   final PerspectiveControlPointType type;
   final bool isActive;
+}
+
+class PerspectiveCropResult {
+  const PerspectiveCropResult({
+    required this.bytes,
+    required this.imageWidth,
+    required this.imageHeight,
+  });
+
+  final Uint8List bytes;
+  final int imageWidth;
+  final int imageHeight;
 }

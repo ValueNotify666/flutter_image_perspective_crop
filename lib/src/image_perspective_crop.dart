@@ -23,7 +23,7 @@ class ImagePerspectiveCrop extends StatefulWidget {
   });
 
   final Uint8List image;
-  final ValueChanged<Uint8List> onCompleted;
+  final ValueChanged<PerspectiveCropResult> onCompleted;
   final ImagePerspectiveCropController? controller;
   final ImagePerspectiveCropStyle style;
   final ImagePerspectiveCropBuilders builders;
@@ -138,7 +138,7 @@ class _ImagePerspectiveCropState extends State<ImagePerspectiveCrop> {
         (current.bottomLeft - full.bottomLeft).distance <= tolerance;
   }
 
-  Future<Uint8List?> _handleComplete() async {
+  Future<PerspectiveCropResult?> _handleComplete() async {
     final PerspectiveQuad? quad = _quad;
     final Rect? imageRect = _imageRect;
     final ui.Image? image = _decodedImage;
@@ -159,8 +159,13 @@ class _ImagePerspectiveCropState extends State<ImagePerspectiveCrop> {
         imageBytes: widget.image,
         imageQuad: imageQuad,
       );
-      widget.onCompleted(result);
-      return result;
+      final PerspectiveCropResult output = PerspectiveCropResult(
+        bytes: result,
+        imageWidth: image.width,
+        imageHeight: image.height,
+      );
+      widget.onCompleted(output);
+      return output;
     } finally {
       if (mounted) {
         setState(() {

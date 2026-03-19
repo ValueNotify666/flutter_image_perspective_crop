@@ -12,11 +12,11 @@ class PerspectiveCropExampleApp extends StatefulWidget {
   const PerspectiveCropExampleApp({super.key});
 
   @override
-  State<PerspectiveCropExampleApp> createState() => _PerspectiveCropExampleAppState();
+  State<PerspectiveCropExampleApp> createState() =>
+      _PerspectiveCropExampleAppState();
 }
 
 class _PerspectiveCropExampleAppState extends State<PerspectiveCropExampleApp> {
-  final ImagePerspectiveCropController _controller = ImagePerspectiveCropController();
   Uint8List? _imageBytes;
 
   @override
@@ -41,10 +41,13 @@ class _PerspectiveCropExampleAppState extends State<PerspectiveCropExampleApp> {
         body: _imageBytes == null
             ? const Center(child: CircularProgressIndicator())
             : ImagePerspectiveCrop(
+                onCloseRequested: () {
+                  Navigator.of(context).pop();
+                },
                 image: _imageBytes!,
-                controller: _controller,
-                onCompleted: (Uint8List data) {
-                  debugPrint('Cropped bytes length: ${data.length}');
+                onCompleted: (PerspectiveCropResult result) {
+                  debugPrint(
+                      'Cropped bytes length: ${result.bytes.length}, source: ${result.imageWidth}x${result.imageHeight}');
                 },
               ),
       ),

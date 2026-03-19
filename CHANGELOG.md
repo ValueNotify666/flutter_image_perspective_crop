@@ -1,3 +1,10 @@
+## 0.0.2
+
+- onCompleted/controller.complete now return `PerspectiveCropResult` (bytes + imageWidth + imageHeight).
+- README and examples updated to new result model.
+- onCompleted/controller.complete 现在返回 `PerspectiveCropResult`（包含 bytes、imageWidth、imageHeight）。
+- README 和示例已同步新返回模型。
+
 ## 0.0.1
 
 - Initial release.
