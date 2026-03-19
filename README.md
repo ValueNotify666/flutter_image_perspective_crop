@@ -47,15 +47,14 @@ import 'package:flutter_image_perspective_crop/flutter_image_perspective_crop.da
 ### 最简单用法
 
 ```dart
-final ImagePerspectiveCropController _cropController = ImagePerspectiveCropController();
 
 ImagePerspectiveCrop(
   image: state.imageBytes,
-  controller: _cropController,
   onCloseRequested: () {
+    print('onCloseRequested do your logic here');
   },
   onCompleted: (Uint8List data) {
-    MyLogs.debug('ImageEditor cropped image bytes: $data');
+    print('ImageEditor cropped image bytes: $data');
   },
 )
 ```
@@ -96,9 +95,9 @@ final ImagePerspectiveCropController _cropController = ImagePerspectiveCropContr
 ImagePerspectiveCrop(
   image: state.imageBytes,
   controller: _cropController,
-  onCompleted: (Uint8List data) {
-    MyLogs.debug('ImageEditor cropped image bytes: $data');
-  },
+  <!-- onCompleted: (Uint8List data) {
+    print('ImageEditor cropped image bytes: $data');
+  }, -->
   builders: ImagePerspectiveCropBuilders(
     bottomBarWithControllerBuilder: (
       BuildContext context,
@@ -111,7 +110,9 @@ ImagePerspectiveCrop(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: <Widget>[
           IconButton(
-            onPressed: controller.close,
+            onPressed: (){
+                /// do your logic page pop() or...
+            }},
             icon: const Icon(Icons.close),
           ),
           IconButton(
