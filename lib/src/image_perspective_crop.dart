@@ -43,6 +43,7 @@ class _ImagePerspectiveCropState extends State<ImagePerspectiveCrop> {
   int? _activeHandleIndex;
   Offset? _activeFocalPoint;
   static const double _handleHitSlop = 28;
+  static const int _chunkSize = 64 * 1024;
 
   @override
   void initState() {
@@ -138,34 +139,86 @@ class _ImagePerspectiveCropState extends State<ImagePerspectiveCrop> {
         (current.bottomLeft - full.bottomLeft).distance <= tolerance;
   }
 
-  Future<PerspectiveCropResult?> _handleComplete() async {
+  Future<void> _emitCompleted(PerspectiveCropResult event) async {
+    widget.onCompleted(event);
+    await widget.controller?.dispatchCompleted(event);
+  }
+
+  Future<void> _sendChunkedResult(PerspectiveCropProcessingOutput output) async {
+    await _emitCompleted(
+      PerspectiveCropResult(
+        status: PerspectiveCropStatus.startSend,
+        imageWidth: output.imageWidth,
+        imageHeight: output.imageHeight,
+        totalBytes: output.bytes.length,
+      ),
+    );
+
+    int sentBytes = 0;
+    while (sentBytes < output.bytes.length) {
+      final int end = (sentBytes + _chunkSize).clamp(0, output.bytes.length);
+      final Uint8List chunk = Uint8List.sublistView(output.bytes, sentBytes, end);
+      sentBytes = end;
+      await _emitCompleted(
+        PerspectiveCropResult(
+          status: PerspectiveCropStatus.sending,
+          chunk: chunk,
+          sentBytes: sentBytes,
+          totalBytes: output.bytes.length,
+          imageWidth: output.imageWidth,
+          imageHeight: output.imageHeight,
+        ),
+      );
+    }
+
+    await _emitCompleted(
+      PerspectiveCropResult(
+        status: PerspectiveCropStatus.complete,
+        imageWidth: output.imageWidth,
+        imageHeight: output.imageHeight,
+        totalBytes: output.bytes.length,
+      ),
+    );
+  }
+
+  Future<void> _handleComplete() async {
     final PerspectiveQuad? quad = _quad;
     final Rect? imageRect = _imageRect;
     final ui.Image? image = _decodedImage;
     if (_isCropping || quad == null || imageRect == null || image == null) {
-      return null;
+      return;
     }
     setState(() {
       _isCropping = true;
     });
     try {
+      await _emitCompleted(
+        PerspectiveCropResult(
+          status: PerspectiveCropStatus.processing,
+          imageWidth: image.width,
+          imageHeight: image.height,
+        ),
+      );
       final PerspectiveQuad imageQuad = PerspectiveCropMath.mapDisplayQuadToImage(
         displayQuad: quad,
         imageRect: imageRect,
         imageWidth: image.width,
         imageHeight: image.height,
       );
-      final Uint8List result = await PerspectiveCropProcessor.cropToJpg(
+      final PerspectiveCropProcessingOutput output = await PerspectiveCropProcessor.cropToJpg(
         imageBytes: widget.image,
         imageQuad: imageQuad,
       );
-      final PerspectiveCropResult output = PerspectiveCropResult(
-        bytes: result,
-        imageWidth: image.width,
-        imageHeight: image.height,
+      await _sendChunkedResult(output);
+    } catch (error) {
+      await _emitCompleted(
+        PerspectiveCropResult(
+          status: PerspectiveCropStatus.error,
+          imageWidth: image.width,
+          imageHeight: image.height,
+          errorMessage: error.toString(),
+        ),
       );
-      widget.onCompleted(output);
-      return output;
     } finally {
       if (mounted) {
         setState(() {

@@ -6,6 +6,14 @@ enum PerspectiveControlPointType {
   edge,
 }
 
+enum PerspectiveCropStatus {
+  processing,
+  startSend,
+  sending,
+  complete,
+  error,
+}
+
 enum PerspectiveControlPointPosition {
   topLeft,
   topCenter,
@@ -76,12 +84,22 @@ class PerspectiveControlPointData {
 
 class PerspectiveCropResult {
   const PerspectiveCropResult({
-    required this.bytes,
-    required this.imageWidth,
-    required this.imageHeight,
+    required this.status,
+    this.bytes,
+    this.chunk,
+    this.imageWidth,
+    this.imageHeight,
+    this.sentBytes,
+    this.totalBytes,
+    this.errorMessage,
   });
 
-  final Uint8List bytes;
-  final int imageWidth;
-  final int imageHeight;
+  final PerspectiveCropStatus status;
+  final Uint8List? bytes;
+  final Uint8List? chunk;
+  final int? imageWidth;
+  final int? imageHeight;
+  final int? sentBytes;
+  final int? totalBytes;
+  final String? errorMessage;
 }

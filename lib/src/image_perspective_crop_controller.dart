@@ -2,15 +2,18 @@ import 'package:flutter/foundation.dart';
 
 import 'image_perspective_crop_models.dart';
 
+typedef PerspectiveCropListener = Future<void> Function(PerspectiveCropResult event);
+
 class ImagePerspectiveCropController extends ChangeNotifier {
   VoidCallback? _onClose;
   VoidCallback? _onSwitch;
-  Future<PerspectiveCropResult?> Function()? _onComplete;
+  Future<void> Function()? _onComplete;
+  PerspectiveCropListener? _onCompleted;
 
   void bind({
     VoidCallback? onClose,
     VoidCallback? onSwitch,
-    Future<PerspectiveCropResult?> Function()? onComplete,
+    Future<void> Function()? onComplete,
   }) {
     _onClose = onClose;
     _onSwitch = onSwitch;
@@ -21,6 +24,7 @@ class ImagePerspectiveCropController extends ChangeNotifier {
     _onClose = null;
     _onSwitch = null;
     _onComplete = null;
+    _onCompleted = null;
   }
 
   void close() {
@@ -31,7 +35,15 @@ class ImagePerspectiveCropController extends ChangeNotifier {
     _onSwitch?.call();
   }
 
-  Future<PerspectiveCropResult?> complete() async {
-    return _onComplete?.call();
+  void onCompleted(PerspectiveCropListener listener) {
+    _onCompleted = listener;
+  }
+
+  Future<void> dispatchCompleted(PerspectiveCropResult event) async {
+    await _onCompleted?.call(event);
+  }
+
+  Future<void> complete() async {
+    await _onComplete?.call();
   }
 }

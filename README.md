@@ -19,8 +19,8 @@ A Flutter package for perspective crop editing with draggable corner and edge ha
 - 通过 `ImagePerspectiveCropController` 支持外部控制
 - Customizable handles, overlays, action buttons, and bottom bar
 - 控制点、叠加层、动作按钮、底部栏均可自定义
-- Returns cropped result as `PerspectiveCropResult` (bytes + imageWidth + imageHeight)
-- 裁剪结果返回 `PerspectiveCropResult`（包含 bytes + imageWidth + imageHeight）
+- Streaming completion events (processing/startSend/sending/complete/error) to avoid UI freeze on large images
+- 支持流式完成事件（processing/startSend/sending/complete/error），大图时避免 UI 卡顿
 
 ## Getting started
 ## 快速开始
@@ -30,7 +30,7 @@ Add the dependency in your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  flutter_image_perspective_crop: ^0.0.2
+  flutter_image_perspective_crop: ^0.0.3
 ```
 
 Then import it:
@@ -43,56 +43,76 @@ import 'package:flutter_image_perspective_crop/flutter_image_perspective_crop.da
 ## Usage
 ## 使用方法
 
-### Basic usage
-### 最简单用法
+### Basic usage (streaming events)
+### 最简单用法（流式事件）
 
 ```dart
+final List<int> sinkBytes = <int>[];
+
 ImagePerspectiveCrop(
-  image: state.imageBytes,
+  image: state.imageBytes, // 必传 only required
   onCloseRequested: () {},
-  onCompleted: (PerspectiveCropResult data) {
-    print('imageWidth: ${data.imageWidth}, imageHeight: ${data.imageHeight}, bytes: ${data.bytes.length}');
+  onCompleted: (PerspectiveCropResult event) async {
+    switch (event.status) {
+      case PerspectiveCropStatus.processing:
+        // show loading
+        break;
+      case PerspectiveCropStatus.startSend:
+        sinkBytes.clear();
+        break;
+      case PerspectiveCropStatus.sending:
+        if (event.chunk != null) sinkBytes.addAll(event.chunk!);
+        break;
+      case PerspectiveCropStatus.complete:
+        final Uint8List bytes = Uint8List.fromList(sinkBytes);
+        debugPrint('final bytes: ${bytes.length}, src: ${event.imageWidth}x${event.imageHeight}');
+        break;
+      case PerspectiveCropStatus.error:
+        debugPrint('error: ${event.errorMessage}');
+        break;
+    }
   },
 )
-
 ```
 
-### Trigger complete from your own button
-### 在自定义按钮中手动触发完成
-
-If you do not replace the whole bottom bar, but you want your own custom button logic, you can call `controller.complete()` directly.
-如果你不替换整个底部栏，但想用自定义按钮逻辑，可以直接调用 `controller.complete()`。
+### Controller + custom button
+### 使用 controller + 自定义按钮
 
 ```dart
-final ImagePerspectiveCropController _cropController = ImagePerspectiveCropController();
+final ImagePerspectiveCropController _controller = ImagePerspectiveCropController();
+final List<int> sinkBytes = <int>[];
 
-Future<void> _onTapComplete() async {
-  final PerspectiveCropResult? data = await _cropController.complete();
-  if (data == null) {
-    return;
-  }
-  print('imageWidth: ${data.imageWidth}, imageHeight: ${data.imageHeight}, bytes: ${data.bytes.length}');
+@override
+void initState() {
+  super.initState();
+  _controller.onCompleted((PerspectiveCropResult event) async {
+    switch (event.status) {
+      case PerspectiveCropStatus.processing:
+        break;
+      case PerspectiveCropStatus.startSend:
+        sinkBytes.clear();
+        break;
+      case PerspectiveCropStatus.sending:
+        if (event.chunk != null) sinkBytes.addAll(event.chunk!);
+        break;
+      case PerspectiveCropStatus.complete:
+        final Uint8List bytes = Uint8List.fromList(sinkBytes);
+        debugPrint('controller bytes: ${bytes.length}');
+        break;
+      case PerspectiveCropStatus.error:
+        debugPrint('error: ${event.errorMessage}');
+        break;
+    }
+  });
 }
-```
 
-`controller.complete()` returns the cropped `PerspectiveCropResult?`.
-`controller.complete()` 会返回裁剪得到的 `PerspectiveCropResult?`。
+// In your button
+await _controller.complete();
 
-At the same time, `ImagePerspectiveCrop.onCompleted` will still be called after crop succeeds.
-同时，裁剪成功后仍会触发 `ImagePerspectiveCrop.onCompleted`。
-
-### Custom bottom bar
-### 自定义底部栏
-
-If you want to fully customize the bottom action bar, use `bottomBarWithControllerBuilder`.
-如果需要完全自定义底部操作栏，请使用 `bottomBarWithControllerBuilder`。
-
-```dart
-final ImagePerspectiveCropController _cropController = ImagePerspectiveCropController();
-
+// Widget
 ImagePerspectiveCrop(
   image: state.imageBytes,
-  controller: _cropController,
+  controller: _controller,
   builders: ImagePerspectiveCropBuilders(
     bottomBarWithControllerBuilder: (
       BuildContext context,
@@ -104,47 +124,21 @@ ImagePerspectiveCrop(
       return Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: <Widget>[
-          IconButton(
-            onPressed: () {
-              // Your close logic, e.g. Navigator.pop()
-              controller.close();
-            },
-            icon: const Icon(Icons.close),
-          ),
-          IconButton(
-            onPressed: controller.switchSelection,
-            icon: const Icon(Icons.crop_free),
-          ),
-          IconButton(
+          closeButton,
+          switchButton,
+          ElevatedButton(
             onPressed: () async {
-              final PerspectiveCropResult? data = await controller.complete();
-              if (data == null) {
-                return;
-              }
-              print('imageWidth: ${data.imageWidth}, imageHeight: ${data.imageHeight}, bytes: ${data.bytes.length}');
+              await controller.complete();
             },
-            icon: const Icon(Icons.check),
+            child: const Text('Done'),
           ),
         ],
       );
     },
   ),
+  onCompleted: (_) async {}, // 可留空，主监听用 controller
 )
 ```
-
-### Notes about `controller.complete()` and `onCompleted`
-### 关于 `controller.complete()` 与 `onCompleted` 的说明
-
-`controller.complete()` and `onCompleted` are both valid result channels:
-`controller.complete()` 和 `onCompleted` 都是有效的结果通道：
-
-- `await controller.complete()` lets your custom button get the crop result directly
-- `await controller.complete()` 让自定义按钮直接获取裁剪结果
-- `onCompleted(PerspectiveCropResult data)` is the widget-level completion callback
-- `onCompleted(PerspectiveCropResult data)` 是组件级完成回调
-
-If you use both, your business code may receive the same crop result twice. Choose one main consumption path based on your architecture.
-如果同时使用，两边都会收到结果，请按业务架构选择一个主要的处理路径，避免重复处理。
 
 ## Customization
 ## 自定义能力
@@ -178,5 +172,5 @@ If you use both, your business code may receive the same crop result twice. Choo
 
 ## License
 ## 许可证
- 
- MIT
+
+MIT
