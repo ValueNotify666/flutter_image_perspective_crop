@@ -66,6 +66,85 @@ class PerspectiveQuad {
   }
 }
 
+class PerspectiveOctagon {
+  const PerspectiveOctagon({
+    required this.topLeft,
+    required this.topCenter,
+    required this.topRight,
+    required this.rightCenter,
+    required this.bottomRight,
+    required this.bottomCenter,
+    required this.bottomLeft,
+    required this.leftCenter,
+  });
+
+  final Offset topLeft;
+  final Offset topCenter;
+  final Offset topRight;
+  final Offset rightCenter;
+  final Offset bottomRight;
+  final Offset bottomCenter;
+  final Offset bottomLeft;
+  final Offset leftCenter;
+
+  List<Offset> toList() {
+    return <Offset>[
+      topLeft,
+      topCenter,
+      topRight,
+      rightCenter,
+      bottomRight,
+      bottomCenter,
+      bottomLeft,
+      leftCenter,
+    ];
+  }
+
+  PerspectiveQuad toQuad() {
+    return PerspectiveQuad(
+      topLeft: topLeft,
+      topRight: topRight,
+      bottomRight: bottomRight,
+      bottomLeft: bottomLeft,
+    );
+  }
+
+  PerspectiveOctagon copyWith({
+    Offset? topLeft,
+    Offset? topCenter,
+    Offset? topRight,
+    Offset? rightCenter,
+    Offset? bottomRight,
+    Offset? bottomCenter,
+    Offset? bottomLeft,
+    Offset? leftCenter,
+  }) {
+    return PerspectiveOctagon(
+      topLeft: topLeft ?? this.topLeft,
+      topCenter: topCenter ?? this.topCenter,
+      topRight: topRight ?? this.topRight,
+      rightCenter: rightCenter ?? this.rightCenter,
+      bottomRight: bottomRight ?? this.bottomRight,
+      bottomCenter: bottomCenter ?? this.bottomCenter,
+      bottomLeft: bottomLeft ?? this.bottomLeft,
+      leftCenter: leftCenter ?? this.leftCenter,
+    );
+  }
+
+  static PerspectiveOctagon fromRect(Rect rect) {
+    return PerspectiveOctagon(
+      topLeft: rect.topLeft,
+      topCenter: Offset(rect.center.dx, rect.top),
+      topRight: rect.topRight,
+      rightCenter: Offset(rect.right, rect.center.dy),
+      bottomRight: rect.bottomRight,
+      bottomCenter: Offset(rect.center.dx, rect.bottom),
+      bottomLeft: rect.bottomLeft,
+      leftCenter: Offset(rect.left, rect.center.dy),
+    );
+  }
+}
+
 class PerspectiveControlPointData {
   const PerspectiveControlPointData({
     required this.index,

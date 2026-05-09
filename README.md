@@ -1,8 +1,14 @@
 # flutter_image_perspective_crop
 # 一个支持透视裁剪的 Flutter 组件
 
-A Flutter package for perspective crop editing with draggable corner and edge handles, fixed reference guides, magnifier preview, external controller support, and pure Dart perspective crop output.
-一个 Flutter 包，提供可拖拽的角点/边中点、固定参考辅助线、拖拽放大镜、外部控制器，以及纯 Dart 实现的透视裁剪输出。
+A Flutter package for perspective crop editing with draggable corner and edge handles, fixed reference guides, magnifier preview, external controller support, and OpenCV-based document detection and enhancement via flutter_opencv_ffi.
+一个 Flutter 包，提供可拖拽的角点/边中点、固定参考辅助线、拖拽放大镜、外部控制器，以及通过 flutter_opencv_ffi 实现 OpenCV 文档检测和增强功能。
+
+**Platform Support: Currently only HarmonyOS (OHOS)**
+**平台支持：目前仅支持鸿蒙（OHOS）**
+
+Note: This package depends on flutter_opencv_ffi which currently only supports HarmonyOS (OHOS) native platform. Support for other platforms (Android, iOS, etc.) will be added when flutter_opencv_ffi extends its platform support.
+注意：本包依赖 flutter_opencv_ffi，该插件目前仅支持鸿蒙（OHOS）原生平台。当 flutter_opencv_ffi 扩展平台支持后，本包也将支持其他平台（Android、iOS 等）。
 
 ## Features
 ## 功能特性

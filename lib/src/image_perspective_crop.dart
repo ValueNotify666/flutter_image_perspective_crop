@@ -37,8 +37,10 @@ class ImagePerspectiveCrop extends StatefulWidget {
 class _ImagePerspectiveCropState extends State<ImagePerspectiveCrop> {
   ui.Image? _decodedImage;
   bool _isCropping = false;
-  PerspectiveQuad? _quad;
-  PerspectiveQuad? _lastCustomQuad;
+  bool _hasTriedAutoDetect = false;
+  bool _isInitializingSelection = false;
+  PerspectiveOctagon? _octagon;
+  PerspectiveOctagon? _lastCustomOctagon;
   Rect? _imageRect;
   int? _activeHandleIndex;
   Offset? _activeFocalPoint;
@@ -69,8 +71,10 @@ class _ImagePerspectiveCropState extends State<ImagePerspectiveCrop> {
     }
     if (oldWidget.image != widget.image) {
       _decodedImage = null;
-      _quad = null;
-      _lastCustomQuad = null;
+      _hasTriedAutoDetect = false;
+      _isInitializingSelection = false;
+      _octagon = null;
+      _lastCustomOctagon = null;
       _imageRect = null;
       _decodeImage();
     }
@@ -93,13 +97,65 @@ class _ImagePerspectiveCropState extends State<ImagePerspectiveCrop> {
     });
   }
 
-  void _initializeQuadIfNeeded(Rect imageRect) {
-    if (_quad != null && _imageRect == imageRect) {
+  void _initializeOctagonIfNeeded(Rect imageRect) {
+    if (_octagon != null && _imageRect == imageRect) {
       return;
     }
     _imageRect = imageRect;
-    _quad ??= PerspectiveQuad.fromRect(imageRect.deflate(24));
-    _lastCustomQuad ??= _quad;
+    if (!_hasTriedAutoDetect) {
+      _hasTriedAutoDetect = true;
+      _isInitializingSelection = true;
+      _detectInitialOctagon(imageRect);
+    }
+  }
+
+  Future<void> _detectInitialOctagon(Rect imageRect) async {
+    final ui.Image? image = _decodedImage;
+    if (image == null) {
+      return;
+    }
+    try {
+      final ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+      if (byteData == null) {
+        throw StateError('Unable to read raw RGBA bytes for document detection.');
+      }
+      final PerspectiveOctagon imageOctagon = await PerspectiveCropProcessor.detectDocumentOctagonRgba(
+        rgba: byteData.buffer.asUint8List(),
+        width: image.width,
+        height: image.height,
+      );
+      if (!mounted || _imageRect != imageRect) {
+        return;
+      }
+      final PerspectiveOctagon displayOctagon = PerspectiveCropMath.mapImageOctagonToDisplay(
+        imageOctagon: imageOctagon,
+        imageRect: imageRect,
+        imageWidth: image.width,
+        imageHeight: image.height,
+      );
+      final PerspectiveOctagon clamped = PerspectiveCropMath.clampOctagon(displayOctagon, imageRect);
+      setState(() {
+        _octagon = clamped;
+        _lastCustomOctagon = clamped;
+      });
+      widget.onSelectionChanged?.call(clamped.toQuad());
+    } catch (_) {
+      if (!mounted || _imageRect != imageRect) {
+        return;
+      }
+      final PerspectiveOctagon fallback = PerspectiveOctagon.fromRect(imageRect.deflate(24));
+      setState(() {
+        _octagon = fallback;
+        _lastCustomOctagon = fallback;
+      });
+      widget.onSelectionChanged?.call(fallback.toQuad());
+    } finally {
+      if (mounted && _imageRect == imageRect) {
+        setState(() {
+          _isInitializingSelection = false;
+        });
+      }
+    }
   }
 
   void _handleClose() {
@@ -112,22 +168,22 @@ class _ImagePerspectiveCropState extends State<ImagePerspectiveCrop> {
 
   void _handleSwitch() {
     final Rect? imageRect = _imageRect;
-    final PerspectiveQuad? quad = _quad;
-    if (imageRect == null || quad == null) {
+    final PerspectiveOctagon? octagon = _octagon;
+    if (imageRect == null || octagon == null) {
       return;
     }
-    final PerspectiveQuad full = PerspectiveQuad.fromRect(imageRect);
-    final bool isFull = _isAlmostFullSelection(quad, full);
+    final PerspectiveOctagon full = PerspectiveOctagon.fromRect(imageRect);
+    final bool isFull = _isAlmostFullSelection(octagon.toQuad(), full.toQuad());
     setState(() {
-      if (isFull && _lastCustomQuad != null) {
-        _quad = _lastCustomQuad;
+      if (isFull && _lastCustomOctagon != null) {
+        _octagon = _lastCustomOctagon;
       } else {
-        _lastCustomQuad = quad;
-        _quad = full;
+        _lastCustomOctagon = octagon;
+        _octagon = full;
       }
     });
-    if (_quad != null) {
-      widget.onSelectionChanged?.call(_quad!);
+    if (_octagon != null) {
+      widget.onSelectionChanged?.call(_octagon!.toQuad());
     }
   }
 
@@ -182,10 +238,10 @@ class _ImagePerspectiveCropState extends State<ImagePerspectiveCrop> {
   }
 
   Future<void> _handleComplete() async {
-    final PerspectiveQuad? quad = _quad;
+    final PerspectiveOctagon? octagon = _octagon;
     final Rect? imageRect = _imageRect;
     final ui.Image? image = _decodedImage;
-    if (_isCropping || quad == null || imageRect == null || image == null) {
+    if (_isCropping || octagon == null || imageRect == null || image == null) {
       return;
     }
     setState(() {
@@ -199,15 +255,15 @@ class _ImagePerspectiveCropState extends State<ImagePerspectiveCrop> {
           imageHeight: image.height,
         ),
       );
-      final PerspectiveQuad imageQuad = PerspectiveCropMath.mapDisplayQuadToImage(
-        displayQuad: quad,
+      final PerspectiveOctagon imageOctagon = PerspectiveCropMath.mapDisplayOctagonToImage(
+        displayOctagon: octagon,
         imageRect: imageRect,
         imageWidth: image.width,
         imageHeight: image.height,
       );
-      final PerspectiveCropProcessingOutput output = await PerspectiveCropProcessor.cropToJpg(
+      final PerspectiveCropProcessingOutput output = await PerspectiveCropProcessor.cropEnhanceToPng(
         imageBytes: widget.image,
-        imageQuad: imageQuad,
+        imageOctagon: imageOctagon,
       );
       await _sendChunkedResult(output);
     } catch (error) {
@@ -228,16 +284,16 @@ class _ImagePerspectiveCropState extends State<ImagePerspectiveCrop> {
     }
   }
 
-  List<PerspectiveControlPointData> _buildHandleData(PerspectiveQuad quad) {
+  List<PerspectiveControlPointData> _buildHandleData(PerspectiveOctagon octagon) {
     return <PerspectiveControlPointData>[
-      PerspectiveControlPointData(index: 0, position: PerspectiveControlPointPosition.topLeft, offset: quad.topLeft, type: PerspectiveControlPointType.corner, isActive: _activeHandleIndex == 0),
-      PerspectiveControlPointData(index: 1, position: PerspectiveControlPointPosition.topCenter, offset: PerspectiveCropMath.midpoint(quad.topLeft, quad.topRight), type: PerspectiveControlPointType.edge, isActive: _activeHandleIndex == 1),
-      PerspectiveControlPointData(index: 2, position: PerspectiveControlPointPosition.topRight, offset: quad.topRight, type: PerspectiveControlPointType.corner, isActive: _activeHandleIndex == 2),
-      PerspectiveControlPointData(index: 3, position: PerspectiveControlPointPosition.rightCenter, offset: PerspectiveCropMath.midpoint(quad.topRight, quad.bottomRight), type: PerspectiveControlPointType.edge, isActive: _activeHandleIndex == 3),
-      PerspectiveControlPointData(index: 4, position: PerspectiveControlPointPosition.bottomRight, offset: quad.bottomRight, type: PerspectiveControlPointType.corner, isActive: _activeHandleIndex == 4),
-      PerspectiveControlPointData(index: 5, position: PerspectiveControlPointPosition.bottomCenter, offset: PerspectiveCropMath.midpoint(quad.bottomLeft, quad.bottomRight), type: PerspectiveControlPointType.edge, isActive: _activeHandleIndex == 5),
-      PerspectiveControlPointData(index: 6, position: PerspectiveControlPointPosition.bottomLeft, offset: quad.bottomLeft, type: PerspectiveControlPointType.corner, isActive: _activeHandleIndex == 6),
-      PerspectiveControlPointData(index: 7, position: PerspectiveControlPointPosition.leftCenter, offset: PerspectiveCropMath.midpoint(quad.topLeft, quad.bottomLeft), type: PerspectiveControlPointType.edge, isActive: _activeHandleIndex == 7),
+      PerspectiveControlPointData(index: 0, position: PerspectiveControlPointPosition.topLeft, offset: octagon.topLeft, type: PerspectiveControlPointType.corner, isActive: _activeHandleIndex == 0),
+      PerspectiveControlPointData(index: 1, position: PerspectiveControlPointPosition.topCenter, offset: octagon.topCenter, type: PerspectiveControlPointType.edge, isActive: _activeHandleIndex == 1),
+      PerspectiveControlPointData(index: 2, position: PerspectiveControlPointPosition.topRight, offset: octagon.topRight, type: PerspectiveControlPointType.corner, isActive: _activeHandleIndex == 2),
+      PerspectiveControlPointData(index: 3, position: PerspectiveControlPointPosition.rightCenter, offset: octagon.rightCenter, type: PerspectiveControlPointType.edge, isActive: _activeHandleIndex == 3),
+      PerspectiveControlPointData(index: 4, position: PerspectiveControlPointPosition.bottomRight, offset: octagon.bottomRight, type: PerspectiveControlPointType.corner, isActive: _activeHandleIndex == 4),
+      PerspectiveControlPointData(index: 5, position: PerspectiveControlPointPosition.bottomCenter, offset: octagon.bottomCenter, type: PerspectiveControlPointType.edge, isActive: _activeHandleIndex == 5),
+      PerspectiveControlPointData(index: 6, position: PerspectiveControlPointPosition.bottomLeft, offset: octagon.bottomLeft, type: PerspectiveControlPointType.corner, isActive: _activeHandleIndex == 6),
+      PerspectiveControlPointData(index: 7, position: PerspectiveControlPointPosition.leftCenter, offset: octagon.leftCenter, type: PerspectiveControlPointType.edge, isActive: _activeHandleIndex == 7),
     ];
   }
 
@@ -257,8 +313,8 @@ class _ImagePerspectiveCropState extends State<ImagePerspectiveCrop> {
     return closestIndex;
   }
 
-  Offset _handleFocalPoint(PerspectiveQuad quad, int index) {
-    return _buildHandleData(quad).firstWhere((PerspectiveControlPointData data) => data.index == index).offset;
+  Offset _handleFocalPoint(PerspectiveOctagon octagon, int index) {
+    return _buildHandleData(octagon).firstWhere((PerspectiveControlPointData data) => data.index == index).offset;
   }
 
   bool _isValidQuad(PerspectiveQuad quad) {
@@ -315,37 +371,37 @@ class _ImagePerspectiveCropState extends State<ImagePerspectiveCrop> {
     return false;
   }
 
-  PerspectiveQuad _moveHandle(PerspectiveQuad quad, int index, Offset delta, Rect bounds) {
-    PerspectiveQuad next = quad;
+  PerspectiveOctagon _moveHandle(PerspectiveOctagon octagon, int index, Offset delta, Rect bounds) {
+    PerspectiveOctagon next = octagon;
     switch (index) {
       case 0:
-        next = quad.copyWith(topLeft: quad.topLeft + delta);
+        next = octagon.copyWith(topLeft: octagon.topLeft + delta);
         break;
       case 1:
-        next = quad.copyWith(topLeft: quad.topLeft + Offset(0, delta.dy), topRight: quad.topRight + Offset(0, delta.dy));
+        next = octagon.copyWith(topCenter: octagon.topCenter + delta);
         break;
       case 2:
-        next = quad.copyWith(topRight: quad.topRight + delta);
+        next = octagon.copyWith(topRight: octagon.topRight + delta);
         break;
       case 3:
-        next = quad.copyWith(topRight: quad.topRight + Offset(delta.dx, 0), bottomRight: quad.bottomRight + Offset(delta.dx, 0));
+        next = octagon.copyWith(rightCenter: octagon.rightCenter + delta);
         break;
       case 4:
-        next = quad.copyWith(bottomRight: quad.bottomRight + delta);
+        next = octagon.copyWith(bottomRight: octagon.bottomRight + delta);
         break;
       case 5:
-        next = quad.copyWith(bottomLeft: quad.bottomLeft + Offset(0, delta.dy), bottomRight: quad.bottomRight + Offset(0, delta.dy));
+        next = octagon.copyWith(bottomCenter: octagon.bottomCenter + delta);
         break;
       case 6:
-        next = quad.copyWith(bottomLeft: quad.bottomLeft + delta);
+        next = octagon.copyWith(bottomLeft: octagon.bottomLeft + delta);
         break;
       case 7:
-        next = quad.copyWith(topLeft: quad.topLeft + Offset(delta.dx, 0), bottomLeft: quad.bottomLeft + Offset(delta.dx, 0));
+        next = octagon.copyWith(leftCenter: octagon.leftCenter + delta);
         break;
     }
-    final PerspectiveQuad clamped = PerspectiveCropMath.clampQuad(next, bounds);
-    if (!_isValidQuad(clamped)) {
-      return quad;
+    final PerspectiveOctagon clamped = PerspectiveCropMath.clampOctagon(next, bounds);
+    if (!_isValidQuad(clamped.toQuad())) {
+      return octagon;
     }
     return clamped;
   }
@@ -358,27 +414,27 @@ class _ImagePerspectiveCropState extends State<ImagePerspectiveCrop> {
 
     setState(() {
       _activeHandleIndex = handleIndex;
-      _activeFocalPoint = _handleFocalPoint(_quad!, handleIndex);
+      _activeFocalPoint = _handleFocalPoint(_octagon!, handleIndex);
     });
   }
 
   void _handlePanUpdate(Offset delta, Rect imageRect) {
     final int? activeHandleIndex = _activeHandleIndex;
-    final PerspectiveQuad? quad = _quad;
-    if (activeHandleIndex == null || quad == null) {
+    final PerspectiveOctagon? octagon = _octagon;
+    if (activeHandleIndex == null || octagon == null) {
       return;
     }
 
-    final PerspectiveQuad nextQuad = _moveHandle(quad, activeHandleIndex, delta, imageRect);
-    final Offset nextFocalPoint = _handleFocalPoint(nextQuad, activeHandleIndex);
+    final PerspectiveOctagon nextOctagon = _moveHandle(octagon, activeHandleIndex, delta, imageRect);
+    final Offset nextFocalPoint = _handleFocalPoint(nextOctagon, activeHandleIndex);
 
     setState(() {
-      _quad = nextQuad;
-      _lastCustomQuad = nextQuad;
+      _octagon = nextOctagon;
+      _lastCustomOctagon = nextOctagon;
       _activeFocalPoint = nextFocalPoint;
     });
 
-    widget.onSelectionChanged?.call(nextQuad);
+    widget.onSelectionChanged?.call(nextOctagon.toQuad());
   }
 
   void _handlePanEnd() {
@@ -437,9 +493,16 @@ class _ImagePerspectiveCropState extends State<ImagePerspectiveCrop> {
       builder: (BuildContext context, BoxConstraints constraints) {
         final Size layoutSize = Size(constraints.maxWidth, constraints.maxHeight);
         final Rect imageRect = _computeImageRect(layoutSize, _decodedImage!);
-        _initializeQuadIfNeeded(imageRect);
-        final PerspectiveQuad quad = _quad!;
-        final List<PerspectiveControlPointData> handles = _buildHandleData(quad);
+        _initializeOctagonIfNeeded(imageRect);
+        if (_octagon == null || _isInitializingSelection) {
+          return Container(
+            color: widget.style.backgroundColor,
+            alignment: Alignment.center,
+            child: const CircularProgressIndicator(),
+          );
+        }
+        final PerspectiveOctagon octagon = _octagon!;
+        final List<PerspectiveControlPointData> handles = _buildHandleData(octagon);
 
         final Widget closeButton = widget.builders.closeButtonBuilder?.call(context, _handleClose) ?? _buildDefaultActionButton(Icons.close, _handleClose);
         final Widget switchButton = widget.builders.switchButtonBuilder?.call(context, _handleSwitch) ?? _buildDefaultActionButton(Icons.crop_free, _handleSwitch);
@@ -459,7 +522,7 @@ class _ImagePerspectiveCropState extends State<ImagePerspectiveCrop> {
                 child: CustomPaint(
                   painter: _PerspectiveCropPainter(
                     imageRect: imageRect,
-                    quad: quad,
+                    octagon: octagon,
                     style: widget.style,
                   ),
                 ),
@@ -632,22 +695,23 @@ class _PerspectiveMagnifierPainter extends CustomPainter {
  class _PerspectiveCropPainter extends CustomPainter {
   const _PerspectiveCropPainter({
     required this.imageRect,
-    required this.quad,
+    required this.octagon,
     required this.style,
   });
 
   final Rect imageRect;
-  final PerspectiveQuad quad;
+  final PerspectiveOctagon octagon;
   final ImagePerspectiveCropStyle style;
 
   @override
   void paint(Canvas canvas, Size size) {
+    final List<Offset> points = octagon.toList();
     final Path quadPath = Path()
-      ..moveTo(quad.topLeft.dx, quad.topLeft.dy)
-      ..lineTo(quad.topRight.dx, quad.topRight.dy)
-      ..lineTo(quad.bottomRight.dx, quad.bottomRight.dy)
-      ..lineTo(quad.bottomLeft.dx, quad.bottomLeft.dy)
-      ..close();
+      ..moveTo(points.first.dx, points.first.dy);
+    for (int i = 1; i < points.length; i++) {
+      quadPath.lineTo(points[i].dx, points[i].dy);
+    }
+    quadPath.close();
     canvas.drawPath(
       Path.combine(PathOperation.difference, Path()..addRect(Offset.zero & size), quadPath),
       Paint()..color = style.overlayColor,
@@ -682,6 +746,6 @@ class _PerspectiveMagnifierPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _PerspectiveCropPainter oldDelegate) {
-    return oldDelegate.quad != quad || oldDelegate.imageRect != imageRect || oldDelegate.style != style;
+    return oldDelegate.octagon != octagon || oldDelegate.imageRect != imageRect || oldDelegate.style != style;
   }
 }

@@ -1,6 +1,6 @@
 name: flutter_image_perspective_crop
-description: "Flutter perspective crop editor with draggable handles, magnifier, controller, and pure Dart processing."
-version: 0.0.3
+description: "Flutter perspective crop editor with draggable handles, magnifier, controller, and OpenCV-based document detection and enhancement via flutter_opencv_ffi. Currently supports HarmonyOS (OHOS) only."
+version: 0.0.4
 homepage: https://github.com/ValueNotify666/flutter_image_perspective_crop
 repository: https://github.com/ValueNotify666/flutter_image_perspective_crop
 issue_tracker: https://github.com/ValueNotify666/flutter_image_perspective_crop/issues
@@ -13,6 +13,10 @@ dependencies:
   flutter:
     sdk: flutter
   image: ^4.8.0
+  flutter_opencv_ffi:
+    git:
+      url: https://github.com/ValueNotify666/flutter_opencv_ffi.git
+      ref: main
 
 dev_dependencies:
   flutter_test:

@@ -1,3 +1,22 @@
+## 0.0.4
+
+- Integrated flutter_opencv_ffi for initial document detection and crop enhancement.
+- Changed local dependency to remote GitHub dependency: flutter_opencv_ffi from https://github.com/ValueNotify666/flutter_opencv_ffi.
+- Initial detection now waits for OpenCV auto-detection to complete before showing crop UI, avoiding default crop box display.
+- Added loading indicator during initial detection phase.
+- Optimized detection input by using ui.Image rawRgba bytes directly, avoiding duplicate image decoding.
+- Initial detection algorithm improved: downscales to max side 960px, uses grayscale text cluster detection, selects densest text region, outputs 8-point rotated rectangle with minimal expansion.
+- Crop enhancement changed from adaptive threshold to CLAHE + sharpening to preserve content (e.g., colored labels) while enhancing text.
+- Platform support: Currently only HarmonyOS (OHOS) due to flutter_opencv_ffi native dependency limitation.
+- 集成 flutter_opencv_ffi 进行首次文档检测和裁剪增强。
+- 将本地依赖改为远程 GitHub 依赖：flutter_opencv_ffi 来自 https://github.com/ValueNotify666/flutter_opencv_ffi。
+- 首次定位现在等待 OpenCV 自动检测完成后再显示裁剪 UI，避免默认裁剪框提前显示。
+- 首次检测阶段添加加载指示器。
+- 优化检测输入，直接使用 ui.Image 的 rawRgba 字节，避免重复解码图片。
+- 首次检测算法改进：降采样到最大边 960px，使用灰度文字簇检测，选择最密集文字区域，输出 8 点旋转矩形并做最小扩展。
+- 裁剪增强从自适应阈值改为 CLAHE + 锐化，保留内容（如彩色标签）同时增强文字。
+- 平台支持：目前仅支持鸿蒙（OHOS），因为 flutter_opencv_ffi 原生依赖目前仅支持鸿蒙原生平台。
+
 ## 0.0.3
 
 - Move perspective crop processing (decode -> crop -> encode) to a background isolate to avoid UI freeze on large images.
